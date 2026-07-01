@@ -44,6 +44,28 @@ src/
 The engine is intentionally separate from the UI so the proven game logic can be
 tested and reused without touching React.
 
+## Monetization (Google AdSense)
+Ad placements are already built and wired up, but are inert (dashed placeholder
+boxes) until you plug in a real AdSense account:
+
+1. Sign up and get approved at https://www.google.com/adsense (requires a live,
+   original site — this repo's GitHub Pages URL qualifies once deployed).
+2. Replace `ca-pub-XXXXXXXXXXXXXXXX` with your publisher ID in **both**:
+   - `index.html` (the `<script ... adsbygoogle.js?client=...>` tag)
+   - `src/ads.js` (`ADSENSE_CLIENT`)
+3. In the AdSense dashboard, create one ad unit per placement and paste the
+   slot IDs into `AD_SLOTS` in `src/ads.js`:
+   - `topBanner` / `bottomBanner` — horizontal banners around the game
+   - `sidebar` — vertical banner shown beside the table on wide screens
+   - `interstitial` — shown in a modal every `INTERSTITIAL_EVERY_HANDS` rounds
+4. Uncomment and fill in your publisher ID in `public/ads.txt`.
+5. Commit and push — the GitHub Actions workflow redeploys automatically.
+
+The interstitial requires a short minimum view (`INTERSTITIAL_MIN_WAIT_SEC`)
+before "Continue" unlocks. Don't shorten the interval or wait time much further
+— showing a fresh ad on every hand reads as invalid/inflated traffic to AdSense
+and risks your account.
+
 ## Deployment
 This is a static site — any static host works. Two one-command options:
 

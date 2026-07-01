@@ -23,3 +23,11 @@ body { font-family: "Outfit", system-ui, sans-serif; -webkit-font-smoothing: ant
 button { font-family: inherit; }
 ::-webkit-scrollbar { height: 6px; width: 6px; }
 ::-webkit-scrollbar-thumb { background: #ffffff20; border-radius: 3px; }
+
+/* Sidebar ads only fit beside the game on wide viewports — hidden on mobile. */
+.ad-sidebar { display: none; position: fixed; top: 90px; width: 160px; z-index: 10; }
+.ad-sidebar.left { left: calc(50% - 240px - 180px); }
+.ad-sidebar.right { right: calc(50% - 240px - 180px); }
+@media (min-width: 1100px) {
+  .ad-sidebar { display: block; }
+}

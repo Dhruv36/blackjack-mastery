@@ -9,6 +9,8 @@ import {
   RESULT_EMOJI as rE, RESULT_LABEL as rL, resultColor as rC,
 } from "./theme.js";
 import Card from "./Card.jsx";
+import AdSlot from "./AdSlot.jsx";
+import { AD_SLOTS, INTERSTITIAL_EVERY_HANDS, INTERSTITIAL_MIN_WAIT_SEC } from "./ads.js";
 
 function Stat({ label, value, color }) {
   return <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 9, color: CL.muted, textTransform: "uppercase", letterSpacing: 1.2 }}>{label}</div><div style={{ fontSize: 15, fontWeight: 700, color: color || CL.text, marginTop: 1 }}>{value}</div></div>;
@@ -21,6 +23,22 @@ function Toggle({ on, onClick, label }) {
 }
 function Disclaimer() {
   return <p style={{ fontSize: 10, color: CL.muted, textAlign: "center", margin: "4px 24px", lineHeight: 1.5 }}>For entertainment and educational use only. No real money is involved.</p>;
+}
+function AdInterstitial({ onContinue }) {
+  const [wait, setWait] = useState(INTERSTITIAL_MIN_WAIT_SEC);
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#000000d8", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 20 }}>
+      <AdSlot slot={AD_SLOTS.interstitial} format="rectangle" style={{ width: 300 }} minHeight={250} />
+      <button onClick={onContinue} disabled={wait > 0} style={{ ...btn, padding: "12px 32px", fontSize: 14, background: wait > 0 ? "#222" : CL.accent, color: "#fff", opacity: wait > 0 ? 0.5 : 1 }}>
+        {wait > 0 ? `Continue in ${wait}s` : "Continue ▶"}
+      </button>
+    </div>
+  );
 }
 
 function StrategyTab({ sTab, setSTab }) {
@@ -74,9 +92,12 @@ export default function App() {
   const [sTab, setSTab] = useState("hard");
   const [showResult, setShowResult] = useState(true);
   const [notice, setNotice] = useState("");
+  const [roundsPlayed, setRoundsPlayed] = useState(0);
+  const [showInterstitial, setShowInterstitial] = useState(false);
   const dealSeq = useRef(0);
   const lastKey = useRef("");
   const noticeT = useRef(null);
+  const lastInterstitialAt = useRef(0);
 
   const { phase, hands, active, dealer, revealed, results, bank, runningCount: rc } = g;
   const curHand = hands[active] ? hands[active].cards : [];
@@ -100,6 +121,7 @@ export default function App() {
       else l++;
     }
     setStats((s) => ({ ...s, w: s.w + w, l: s.l + l, p: s.p + p }));
+    setRoundsPlayed((r) => r + 1);
   }, [phase, results]);
 
   useEffect(() => {
@@ -124,7 +146,14 @@ export default function App() {
     setFb({ action, correct, wrong: action !== correct });
   };
 
-  const onDeal = () => { if (bank < bet) return; setFb(null); setShowHint(false); dealSeq.current++; setG(deal(g, bet)); };
+  const startDeal = () => { setFb(null); setShowHint(false); dealSeq.current++; setG(deal(g, bet)); };
+  const onDeal = () => {
+    if (bank < bet) return;
+    const dueForAd = roundsPlayed > 0 && roundsPlayed % INTERSTITIAL_EVERY_HANDS === 0 && lastInterstitialAt.current !== roundsPlayed;
+    if (dueForAd) { lastInterstitialAt.current = roundsPlayed; setShowInterstitial(true); return; }
+    startDeal();
+  };
+  const onInterstitialContinue = () => { setShowInterstitial(false); startDeal(); };
   const onInsurance = (yes) => { if (coach) setStats((s) => ({ ...s, tot: s.tot + 1, cor: s.cor + (yes ? 0 : 1) })); setG(decideInsurance(g, yes)); };
   const onHit = () => { record("H"); setG(hit(g)); };
   const onStand = () => { record("S"); setG(stand(g)); };
@@ -138,7 +167,11 @@ export default function App() {
   const insBet = Math.floor(bet / 2);
 
   return (
-    <div style={{ minHeight: "100vh", background: CL.bg, color: CL.text, fontFamily: "'Outfit',sans-serif", maxWidth: 480, margin: "0 auto" }}>
+    <>
+      <div className="ad-sidebar left"><AdSlot slot={AD_SLOTS.sidebar} format="vertical" minHeight={480} /></div>
+      <div className="ad-sidebar right"><AdSlot slot={AD_SLOTS.sidebar} format="vertical" minHeight={480} /></div>
+      {showInterstitial && <AdInterstitial onContinue={onInterstitialContinue} />}
+      <div style={{ minHeight: "100vh", background: CL.bg, color: CL.text, fontFamily: "'Outfit',sans-serif", maxWidth: 480, margin: "0 auto" }}>
       <header style={{ background: "linear-gradient(180deg,#111827,#0f1525)", padding: "16px 20px 12px", borderBottom: "1px solid #ffffff0a", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 9, background: `linear-gradient(135deg,${CL.accent},${CL.gold})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#000", fontWeight: 900 }}>♠</div>
@@ -158,6 +191,7 @@ export default function App() {
 
       {tab === "play" && (
         <main style={{ padding: "0 0 100px" }}>
+          <AdSlot slot={AD_SLOTS.topBanner} format="horizontal" style={{ margin: "8px 16px 0" }} />
           <div style={{ display: "flex", gap: 2, padding: "10px 16px", background: "#0d1120", borderBottom: "1px solid #ffffff06" }}>
             <Stat label="Bankroll" value={"$" + bank.toLocaleString()} color={bank >= 5000 ? CL.accent : bank < 2000 ? CL.red : CL.gold} />
             <Stat label="W/L/P" value={`${stats.w}/${stats.l}/${stats.p}`} />
@@ -262,12 +296,14 @@ export default function App() {
               <div style={{ fontSize: 11, color: CL.muted, marginTop: 2 }}>{handValue(curHand)} vs Dealer {dealerUp.rank} · {isPair(curHand) ? "Pair" : isSoft(curHand) ? "Soft" : "Hard"}</div>
             </div>
           )}
+          <AdSlot slot={AD_SLOTS.bottomBanner} format="horizontal" style={{ margin: "12px 16px" }} />
           <Disclaimer />
         </main>
       )}
 
       {tab === "strategy" && <StrategyTab sTab={sTab} setSTab={setSTab} />}
       {tab === "tips" && <TipsTab />}
-    </div>
+      </div>
+    </>
   );
 }
