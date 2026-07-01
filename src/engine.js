@@ -298,7 +298,7 @@ function playDealer(state) {
     if (r === "win" || r === "dealerBust") bank += b * 2;
     else if (r === "push") bank += b;
   });
-  return { ...state, dealer, shoe, runningCount, holeCounted: true, revealed: true, results, phase: "result" };
+  return { ...state, dealer, shoe, runningCount, holeCounted: true, revealed: true, results, bank, phase: "result" };
 }
 
 // Helper for the UI: which moves are legal for the active hand right now.
