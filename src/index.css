@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #0a0e1a; }
+body { font-family: "Outfit", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+#root { min-height: 100vh; }
+
+@keyframes bjDealIn {
+  from { opacity: 0; transform: translateX(120px) translateY(-70px) rotate(14deg) scale(0.5); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes bjPopIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.85); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes bjFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.bjcard { display: inline-block; }
+.bjdeal { animation: bjDealIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.bjpop  { animation: bjPopIn 0.3s ease both; }
+.bjbanner { animation: bjFade 0.35s ease both; }
+
+button { font-family: inherit; }
+::-webkit-scrollbar { height: 6px; width: 6px; }
+::-webkit-scrollbar-thumb { background: #ffffff20; border-radius: 3px; }
