@@ -102,12 +102,9 @@ export default function App() {
   const { phase, hands, active, dealer, revealed, results, bank, runningCount: rc } = g;
   const curHand = hands[active] ? hands[active].cards : [];
   const dealerUp = dealer && dealer.length > 0 ? dealer[0] : null;
+  // Engine-authoritative legality for the active hand (bank-aware) — used for
+  // buttons, coach grading, and hints so they can never disagree.
   const la = legalActions(g);
-  const opts = (cs, allH) => ({
-    canDouble: cs.length === 2,
-    canSplit: cs.length === 2 && isPair(cs) && allH.length < 4,
-    canSurrender: allH.length === 1 && cs.length === 2,
-  });
 
   useEffect(() => {
     if (phase !== "result" || !results.length) return;
@@ -141,7 +138,7 @@ export default function App() {
 
   const record = (action) => {
     if (!coach || !dealerUp || curHand.length < 2) return;
-    const correct = getCorrectAction(curHand, dealerUp, opts(curHand, hands));
+    const correct = getCorrectAction(curHand, dealerUp, la);
     setStats((s) => ({ ...s, tot: s.tot + 1, cor: s.cor + (action === correct ? 1 : 0) }));
     setFb({ action, correct, wrong: action !== correct });
   };
@@ -292,7 +289,7 @@ export default function App() {
           {showHint && phase === "play" && curHand.length >= 2 && dealerUp && (
             <div style={{ margin: "0 16px 12px", padding: 14, borderRadius: 14, background: "#111827", border: "1px solid #ffffff12" }}>
               <div style={{ fontSize: 11, color: CL.muted, marginBottom: 4 }}>Optimal play:</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: ACTION_COLORS[getCorrectAction(curHand, dealerUp, opts(curHand, hands))] }}>{ACTION_LABELS[getCorrectAction(curHand, dealerUp, opts(curHand, hands))]}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: ACTION_COLORS[getCorrectAction(curHand, dealerUp, la)] }}>{ACTION_LABELS[getCorrectAction(curHand, dealerUp, la)]}</div>
               <div style={{ fontSize: 11, color: CL.muted, marginTop: 2 }}>{handValue(curHand)} vs Dealer {dealerUp.rank} · {isPair(curHand) ? "Pair" : isSoft(curHand) ? "Soft" : "Hard"}</div>
             </div>
           )}

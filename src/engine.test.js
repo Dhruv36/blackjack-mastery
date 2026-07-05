@@ -58,6 +58,13 @@ describe("basic strategy", () => {
   it("downgrades double to hit when not allowed", () => {
     expect(getCorrectAction([C("6"), C("5")], C("10"), { canDouble: false })).toBe("H");
   });
+  it("treats unsplittable A-A as soft 12: always hit, never hard-12 stand", () => {
+    const noSplit = { canDouble: true, canSplit: false, canSurrender: false };
+    for (const up of ["2", "3", "4", "5", "6", "7", "10", "A"]) {
+      expect(getCorrectAction([C("A"), C("A")], C(up), noSplit)).toBe("H");
+    }
+    expect(getCorrectAction([C("A"), C("A")], C("4"), { canSplit: true })).toBe("P");
+  });
 });
 
 describe("payouts and special hands", () => {
@@ -96,6 +103,42 @@ describe("payouts and special hands", () => {
     expect(s.phase).toBe("result");
     expect(s.hands.length).toBe(2);
     expect(s.hands.every((h) => h.cards.length === 2)).toBe(true);
+  });
+});
+
+describe("engine hardening", () => {
+  it("settles plain hands correctly: win pays 1:1, push returns the stake", () => {
+    let s = stackedDeal([C("10"), C("9")], [C("10"), C("8")]); // 19 vs 18
+    s = stand(s);
+    expect(s.results).toEqual(["win"]);
+    expect(s.bank).toBe(5100);
+    let p = stackedDeal([C("10"), C("8")], [C("10"), C("8")]); // 18 vs 18
+    p = stand(p);
+    expect(p.results).toEqual(["push"]);
+    expect(p.bank).toBe(5000);
+  });
+  it("ignores deal() mid-hand and invalid or unaffordable bets", () => {
+    const mid = stackedDeal([C("10"), C("7")], [C("10"), C("9")]);
+    expect(mid.phase).toBe("play");
+    expect(deal(mid, 100)).toBe(mid); // dealing mid-hand must be a no-op
+    const done = stand(mid);
+    expect(done.phase).toBe("result");
+    expect(deal(done, done.bank + 1)).toBe(done); // can't bet more than the bank
+    expect(deal(done, 0)).toBe(done);
+    expect(deal(done, -50)).toBe(done);
+  });
+  it("refills the shoe instead of dealing undefined if it empties mid-hand", () => {
+    let s = stackedDeal([C("2"), C("3")], [C("10"), C("2")]); // player 5, dealer 12
+    expect(s.phase).toBe("play");
+    s = { ...s, shoe: [] };  // pathological: shoe dry mid-hand
+    s = hit(s);              // player draw comes from an emergency refill
+    expect(s.hands[0].cards.every(Boolean)).toBe(true);
+    let guard = 0;
+    while (s.phase === "play" && guard++ < 30) s = stand(s);
+    expect(s.phase).toBe("result"); // dealer must draw to 17+ from the refill
+    expect(s.dealer.every(Boolean)).toBe(true);
+    expect(handValue(s.dealer)).toBeGreaterThanOrEqual(17);
+    expect(Number.isFinite(s.bank)).toBe(true);
   });
 });
 

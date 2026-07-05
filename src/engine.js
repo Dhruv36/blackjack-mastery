@@ -41,6 +41,14 @@ export const BS_PAIR = {
 
 const RESHUFFLE_THRESHOLD = 60; // reshuffle between hands when the shoe runs low
 
+// Draw from the shoe, refilling it if it somehow runs dry mid-hand (only
+// reachable through pathological draw sequences, but a dealt card must never
+// be undefined).
+function takeCard(shoe) {
+  if (shoe.length === 0) shoe.push(...makeDeck());
+  return shoe.pop();
+}
+
 export function makeDeck(numDecks = 6) {
   const deck = [];
   for (let i = 0; i < numDecks; i++)
@@ -112,6 +120,7 @@ export function getCorrectAction(cards, dealerUp, opts) {
     if (row && row[di] === "P") return "P";
   }
   if (isSoft(cards)) {
+    if (v === 12) return "H"; // A-A when splitting isn't possible: soft 12 always hits
     const row = BS_SOFT[v];
     if (row && row[di]) {
       const a = row[di];
@@ -138,6 +147,8 @@ export function freshState(bank = 5000) {
 }
 
 export function deal(state, bet) {
+  if (state.phase !== "bet" && state.phase !== "result") return state;
+  if (!Number.isFinite(bet) || bet <= 0 || bet > state.bank) return state;
   let shoe = state.shoe.slice();
   let runningCount = state.runningCount;
   let reshuffled = false;
@@ -146,7 +157,7 @@ export function deal(state, bet) {
     runningCount = 0;
     reshuffled = true;
   }
-  const c0 = shoe.pop(), c1 = shoe.pop(), c2 = shoe.pop(), c3 = shoe.pop();
+  const c0 = takeCard(shoe), c1 = takeCard(shoe), c2 = takeCard(shoe), c3 = takeCard(shoe);
   runningCount += hiLo(c0) + hiLo(c1) + hiLo(c2); // 3 visible; hole (c3) not counted yet
 
   const next = {
@@ -183,16 +194,16 @@ function resolvePeek(state, info, insured) {
     if (insured) bank += insBet * 3;        // 2:1 win + stake back
     return {
       ...state, bank, runningCount, revealed: true, holeCounted: true, insured,
-      results: [info.playerBJ ? "push" : "lose"], phase: "result",
+      results: [info.playerBJ ? "push" : "lose"], phase: "result", pending: null,
     };
   }
   if (info.playerBJ) {
     return {
       ...state, bank: bank + info.bet + Math.floor(info.bet * 1.5),
-      runningCount, insured, results: ["blackjack"], phase: "result",
+      runningCount, insured, results: ["blackjack"], phase: "result", pending: null,
     };
   }
-  return { ...state, bank, runningCount, insured, phase: "play" };
+  return { ...state, bank, runningCount, insured, phase: "play", pending: null };
 }
 
 export function decideInsurance(state, takeIt) {
@@ -210,7 +221,7 @@ function advance(state) {
 export function hit(state) {
   if (state.phase !== "play") return state;
   const shoe = state.shoe.slice();
-  const card = shoe.pop();
+  const card = takeCard(shoe);
   const runningCount = state.runningCount + hiLo(card);
   let hands = state.hands.map((h, i) => (i === state.active ? { ...h, cards: [...h.cards, card] } : h));
   const next = { ...state, shoe, runningCount, hands };
@@ -232,7 +243,7 @@ export function doubleDown(state) {
   const h = state.hands[state.active];
   if (h.cards.length !== 2 || state.bank < h.bet) return state;
   const shoe = state.shoe.slice();
-  const card = shoe.pop();
+  const card = takeCard(shoe);
   const runningCount = state.runningCount + hiLo(card);
   const hands = state.hands.map((x, i) =>
     i === state.active ? { ...x, cards: [...x.cards, card], bet: x.bet * 2, done: true } : x
@@ -246,7 +257,7 @@ export function split(state) {
   if (h.cards.length !== 2 || !isPair(h.cards) || state.hands.length >= 4 || state.bank < h.bet) return state;
   const shoe = state.shoe.slice();
   const [c1, c2] = h.cards;
-  const n1 = shoe.pop(), n2 = shoe.pop();
+  const n1 = takeCard(shoe), n2 = takeCard(shoe);
   const runningCount = state.runningCount + hiLo(n1) + hiLo(n2);
   const aces = c1.rank === "A";
   const hands = state.hands.slice();
@@ -276,7 +287,7 @@ function playDealer(state) {
   if (!allBust) {
     let guard = 0;
     while (handValue(dealer) < 17 && guard < 20) {
-      const c = shoe.pop();
+      const c = takeCard(shoe);
       dealer.push(c);
       runningCount += hiLo(c);
       guard++;
